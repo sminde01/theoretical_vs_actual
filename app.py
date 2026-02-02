@@ -840,10 +840,10 @@ class CostAnalyzer:
         
         result_df = pd.DataFrame({
             "Metric": [
-                "Total Input Weight Sharada (Kg)",
+                "Total Input Weight (Kg)",
                 # "Total Input Weight Algo (Kg)",
                 # "Difference Input Weight (Kg)",
-                "Total Input Weight Per Car Sharada (Kg)",
+                "Total Input Weight Per Car (Kg)",
                 # "Total Input Weight Per Car Algo (Kg)",
                 # "Difference Input Weight Per Car (Kg)",
                 "Steel procurement Per Car (Kg)",
@@ -1571,3 +1571,4 @@ class DashboardApp:
 if __name__ == "__main__":
     app = DashboardApp()
     app.run()
+
