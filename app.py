@@ -688,6 +688,16 @@ class ComparisonAnalyzer:
         theo_total_row = self._find_total_row(ws_theo, 'Theoretical_Total')
         actual_total_row = self._find_total_row(ws_actual, 'Actual_Total')
         
+        if theo_total_row is None:
+            theo_totals = self._calculate_totals_directly(ws_theo, len(material_grades))
+        else:
+            theo_totals = None
+        
+        if actual_total_row is None:
+            actual_totals = self._calculate_totals_directly(ws_actual, len(material_grades))
+        else:
+            actual_totals = None
+        
         headers = ['Material Grade', 'Theoretical_Total', 'Actual_Total', 'Difference', 'Difference_Percent']
         for col_idx, header in enumerate(headers, 1):
             ws_comp.cell(1, col_idx, header)
@@ -696,14 +706,29 @@ class ComparisonAnalyzer:
             row = i + 2
             ws_comp.cell(row, 1, grade)
             
-            theo_val = ws_theo.cell(theo_total_row, 3 + i).value if theo_total_row else 0
-            actual_val = ws_actual.cell(actual_total_row, 3 + i).value if actual_total_row else 0
+            # Get theoretical value
+            if theo_totals:
+                theo_val = theo_totals[i]  # From direct calculation
+            else:
+                theo_val = ws_theo.cell(theo_total_row, 3 + i).value or 0  # From total row
+            
+            # Get actual value
+            if actual_totals:
+                actual_val = actual_totals[i]  # From direct calculation
+            else:
+                actual_val = ws_actual.cell(actual_total_row, 3 + i).value or 0  # From total row
             
             ws_comp.cell(row, 2, theo_val)
             ws_comp.cell(row, 3, actual_val)
-            ws_comp.cell(row, 4, actual_val - theo_val)
+            
+            # Difference
+            diff = actual_val - theo_val
+            ws_comp.cell(row, 4, diff if abs(diff) > 1e-6 else 0)  # Clean tiny values
+            
+            # Difference Percent
             if theo_val != 0:
-                ws_comp.cell(row, 5, ((actual_val - theo_val) / theo_val) * 100)
+                diff_pct = ((actual_val - theo_val) / theo_val) * 100
+                ws_comp.cell(row, 5, diff_pct if abs(diff_pct) > 1e-6 else 0)
             else:
                 ws_comp.cell(row, 5, 0)
         
@@ -712,28 +737,67 @@ class ComparisonAnalyzer:
         return self.wb
     
     def _find_total_row(self, ws, label):
-        """Find row containing the specified label"""
+        """Find row containing the specified label - searches entire column B"""
         row_idx = 2
-        while ws.cell(row_idx, 2).value:
-            if ws.cell(row_idx, 2).value == label:
+        max_row = ws.max_row
+        
+        while row_idx <= max_row:
+            cell_value = ws.cell(row_idx, 2).value
+            if cell_value and str(cell_value).strip() == label:
                 return row_idx
             row_idx += 1
-        return None
+        
+        return None  
+    
+    def _calculate_totals_directly(self, ws, num_grades):
+        """Calculate column totals directly if total row is not found"""
+        totals = []
+        
+        for i in range(num_grades):
+            col_idx = 3 + i
+            col_sum = 0
+            
+            for row_idx in range(2, ws.max_row + 1):
+                cell = ws.cell(row_idx, col_idx)
+                col_a_val = ws.cell(row_idx, 1).value
+                col_b_val = ws.cell(row_idx, 2).value
+                
+                if col_a_val and str(col_a_val).strip().lower() in ['theoretical_total', 'actual_total', 'total']:
+                    continue
+                if col_b_val and str(col_b_val).strip().lower() in ['theoretical_total', 'actual_total', 'total']:
+                    continue
+                
+                if cell.value is not None and isinstance(cell.value, (int, float)):
+                    col_sum += cell.value
+            
+            totals.append(col_sum)
+        
+        return totals
     
     def _add_summary_row(self, ws, num_grades):
         """Add summary calculations row"""
         last_row = num_grades + 2
         ws.cell(last_row, 1, 'Calculations')
         
-        theo_sum = sum(ws.cell(i + 2, 2).value or 0 for i in range(num_grades))
-        actual_sum = sum(ws.cell(i + 2, 3).value or 0 for i in range(num_grades))
+        theo_sum = 0
+        actual_sum = 0
+        
+        for i in range(num_grades):
+            theo_val = ws.cell(i + 2, 2).value
+            actual_val = ws.cell(i + 2, 3).value
+            
+            if theo_val and isinstance(theo_val, (int, float)):
+                theo_sum += theo_val
+            if actual_val and isinstance(actual_val, (int, float)):
+                actual_sum += actual_val
+        
         diff = actual_sum - theo_sum
         diff_pct = (diff / theo_sum * 100) if theo_sum != 0 else 0
         
         ws.cell(last_row, 2, theo_sum)
         ws.cell(last_row, 3, actual_sum)
-        ws.cell(last_row, 4, diff)
-        ws.cell(last_row, 5, diff_pct)
+        ws.cell(last_row, 4, diff if abs(diff) > 1e-6 else 0)
+        ws.cell(last_row, 5, diff_pct if abs(diff_pct) > 1e-6 else 0)
 
 
 # =============================================
@@ -1145,6 +1209,29 @@ class ExcelStyler:
 
 
     @staticmethod
+    def apply_comparison_sheet_styling(workbook):
+        """Apply yellow highlighting to the Calculations row in Comparison_sheet"""
+        from openpyxl.styles import PatternFill
+        
+        if 'Comparison_sheet' not in workbook.sheetnames:
+            return workbook
+        
+        ws = workbook['Comparison_sheet']
+        
+        # Define yellow fill
+        yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+        
+        for row_idx in range(1, ws.max_row + 1):
+            cell_value = ws.cell(row_idx, 1).value
+            if cell_value and str(cell_value).strip() == 'Calculations':
+                for col_idx in range(1, ws.max_column + 1):
+                    ws.cell(row_idx, col_idx).fill = yellow_fill
+                break
+        
+        return workbook
+
+
+    @staticmethod
     def apply_cost_analysis_styling(workbook):
         """Apply conditional formatting to Cost_Analysis sheet"""
         from openpyxl.styles import PatternFill
@@ -1336,16 +1423,22 @@ class Pipeline:
         
         output.seek(0)
         self.wb = load_workbook(output)
-        
+
+        # Matrix Genrator
         matrix_gen = MatrixGenerator(self.wb, self.df_calculated, self.is_4_level)
         self.wb = matrix_gen.create_matrix_sheets()
         self.wb = matrix_gen.fill_matrix_data()
         self.wb = matrix_gen.add_totals()
         
+        # Comparison Analyzer 
+        styler = ExcelStyler()
         comparison = ComparisonAnalyzer(self.wb)
         self.wb = comparison.create_comparison_sheet()
-        
-        styler = ExcelStyler()
+        self.wb = styler.apply_styles_to_workbook(self.wb, self.df_calculated)
+        self.wb = styler.apply_comparison_sheet_styling(self.wb)  
+
+
+        # Cost Analyzer
         self.wb = styler.apply_styles_to_workbook(self.wb, self.df_calculated)
         
         cost_analyzer = CostAnalyzer(
@@ -1356,6 +1449,7 @@ class Pipeline:
         
         self._add_sheet_from_dataframe('Cost_Analysis', cost_df)
 
+        # Filtered Components
         styler = ExcelStyler()
         self.wb = styler.apply_cost_analysis_styling(self.wb)
         
@@ -1571,4 +1665,5 @@ class DashboardApp:
 if __name__ == "__main__":
     app = DashboardApp()
     app.run()
+
 
