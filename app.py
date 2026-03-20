@@ -8,6 +8,7 @@ import io
 import os
 import hashlib
 
+from ga import load_ga, track_event  # ← add this
 
 # =============================================
 # GLOBAL CONFIGURATION
@@ -1512,6 +1513,7 @@ class DashboardApp:
         st.set_page_config(page_title="Theoretical vs Actual", layout="wide", page_icon="🏭")
         st.title("Theoretical vs Actual Calculator")
         st.markdown("---")
+        load_ga("Theoretical_vs_Actual")
     
     def display_metrics(self, metrics, hierarchy_info):
         """Display key metrics"""
@@ -1595,6 +1597,7 @@ class DashboardApp:
         )
         
         if uploaded_file is not None:
+            track_event("file_uploaded", {"app_name": "Theoretical_vs_Actual"})
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.info(f"📁 **File:** {uploaded_file.name}")
