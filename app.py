@@ -8,7 +8,7 @@ import io
 import os
 import hashlib
 
-from ga import load_ga, track_event  # ← add this
+from ga import load_ga, track_event, _is_local  # ← add this
 
 # =============================================
 # GLOBAL CONFIGURATION
@@ -1597,7 +1597,7 @@ class DashboardApp:
         )
         
         if uploaded_file is not None:
-            track_event("file_uploaded", "upload", "Theoretical_vs_Actual")
+            track_event("file_uploaded", app_name="Theoretical_vs_Actual")
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.info(f"📁 **File:** {uploaded_file.name}")
@@ -1605,7 +1605,7 @@ class DashboardApp:
                 sheet_index = 0
             
             if st.button("🚀 Process File", type="primary", use_container_width=True):
-                track_event("feature_used", "Theoretical_vs_Actual", "Process_File")
+                track_event("file_processed", app_name="Theoretical_vs_Actual", feature="Process_File")
                 try:
                     with st.spinner("⏳ Processing your file..."):
                         progress_bar = st.progress(0)
@@ -1656,7 +1656,7 @@ class DashboardApp:
                             type="primary",
                             use_container_width=True
                         )
-                        track_event("feature_used", "Theoretical_vs_Actual", "Download_Output")
+                        track_event("file_downloaded", app_name="Theoretical_vs_Actual", feature="Download_Output")
 
                         
                 except Exception as e:
